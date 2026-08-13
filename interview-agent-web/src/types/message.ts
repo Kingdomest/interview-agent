@@ -35,6 +35,7 @@ export interface RAGEvaluation {
 // 服务端推送的消息
 export type ServerMessage =
     | { type: 'chat_reply'; content: string }
+    | { type: 'chat_reply'; streamType: 'chat_reply'; streamId: string; delta?: string; done?: boolean }
     | { type: 'stage_change'; stage: string; message: string }
     | { type: 'question'; question_num: number; content: string }
     | { type: 'review_item'; content: string }
@@ -43,7 +44,9 @@ export type ServerMessage =
     | { type: 'memory_weak_points'; message: string; content: string }
     | { type: 'score'; score: number; feedback: string; key_points_hit: string[]; key_points_missed: string[] }
     | { type: 'report'; content: string }
+    | { type: 'report'; streamType: 'report'; streamId: string; delta?: string; done?: boolean }
     | { type: 'review_plan'; content: string }
+    | { type: 'review_plan'; streamType: 'review_plan'; streamId: string; delta?: string; done?: boolean }
     | { type: 'upload_result'; content: string; message: string }
     | { type: 'rag_evaluation'; rag_evaluation: RAGEvaluation }
     | { type: 'error'; message: string }
@@ -56,6 +59,7 @@ export type ServerMessage =
 // UI 展示用的消息
 export interface ChatMessage {
     id: string
+    streamId?: string
     role: 'user' | 'assistant' | 'system'
     content: string
     messageType: 'text' | 'score' | 'report' | 'review_plan' | 'review_item' | 'memory_weak_points' | 'question_directions' | 'question_plan_details' | 'stage' | 'question' | 'resume_match_result' | 'file' | 'upload_result' | 'rag_evaluation'

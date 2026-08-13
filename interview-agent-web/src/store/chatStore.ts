@@ -57,6 +57,31 @@ let msgId = 0
 const nextId = () => String(++msgId)
 
 /**
+ * 将流式分片追加到当前最后一条同类型消息上，避免每个 chunk 都生成一条气泡。
+ */
+function appendStreamChunk(messages: ChatMessage[], messageType: ChatMessage['messageType'], streamId: string, delta = '') {
+    if (!delta) return
+    for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].streamId === streamId) {
+            messages[i] = {
+                ...messages[i],
+                content: messages[i].content + delta,
+                timestamp: Date.now(),
+            }
+            return
+        }
+    }
+    messages.push({
+        id: nextId(),
+        streamId,
+        role: 'assistant',
+        content: delta,
+        messageType,
+        timestamp: Date.now(),
+    })
+}
+
+/**
  * 聊天状态 Store 实例
  * 使用 Zustand create 函数创建，支持在组件中通过 useChatStore(selector) 订阅特定状态
  */
@@ -94,6 +119,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
      */
     handleServerMessage: (msg) => {
         const now = Date.now()
+        if ('streamType' in msg && msg.streamType) {
+            set((state) => {
+                const messages = [...state.messages]
+                if (msg.streamType === 'chat_reply') {
+                    appendStreamChunk(messages, 'text', msg.streamId, msg.delta)
+                } else if (msg.streamType === 'report') {
+                    appendStreamChunk(messages, 'report', msg.streamId, msg.delta)
+                } else if (msg.streamType === 'review_plan') {
+                    appendStreamChunk(messages, 'review_plan', msg.streamId, msg.delta)
+                }
+                return {messages}
+            })
+            return
+        }
         switch (msg.type) {
             case 'chat_reply':
                 get().addMessage({
