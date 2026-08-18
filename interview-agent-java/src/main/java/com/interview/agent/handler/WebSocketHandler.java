@@ -337,11 +337,26 @@ public class WebSocketHandler extends TextWebSocketHandler {
         }
 
         // 优先级 3：ChatAgent 兜底
-        String reply = chatAgent.chat(ws.chatHistory, input);
         ws.chatHistory.add(new UserMessage(input));
-        ws.chatHistory.add(new AssistantMessage(reply));
-        trimChatHistory(ws);
-        sendChatReply(ws, input, reply);
+        StringBuilder reply = new StringBuilder();
+        String streamId = UUID.randomUUID().toString();
+        chatAgent.streamChat(ws.chatHistory, input)
+                .doOnNext(delta -> {
+                    reply.append(delta);
+                    sendStreamChunk(ws.conn, "chat_reply", streamId, delta, false);
+                })
+                .doOnError(e -> {
+                    log.error("[WS] 流式聊天失败: {}", e.getMessage(), e);
+                    sendServerMsg(ws.conn, ServerMsg.builder().type("error").message("聊天生成失败: " + e.getMessage()).build());
+                })
+                .doOnComplete(() -> {
+                    String finalReply = reply.toString();
+                    ws.chatHistory.add(new AssistantMessage(finalReply));
+                    trimChatHistory(ws);
+                    sendStreamChunk(ws.conn, "chat_reply", streamId, "", true);
+                    saveChatTurn(ws, input, finalReply);
+                })
+                .subscribe();
     }
 
     /**
@@ -532,8 +547,7 @@ public class WebSocketHandler extends TextWebSocketHandler {
                      */
                     @Override
                     public void onReport(String report) {
-                        sendServerMsg(ws.conn, ServerMsg.builder()
-                                .type("report").content(report).build());
+                        streamText(ws.conn, "report", report);
                         // 实时保存评估报告消息到 Redis
                         saveMessageToRedis(ws.userID, sessionId, "assistant", report, Map.of("message_type", "report"));
                     }
@@ -543,8 +557,7 @@ public class WebSocketHandler extends TextWebSocketHandler {
                      */
                     @Override
                     public void onReviewPlan(String plan) {
-                        sendServerMsg(ws.conn, ServerMsg.builder()
-                                .type("review_plan").content(plan).build());
+                        streamText(ws.conn, "review_plan", plan);
                         // 实时保存复习计划消息到 Redis
                         saveMessageToRedis(ws.userID, sessionId, "assistant", plan, Map.of("message_type", "review_plan"));
                     }
@@ -1115,8 +1128,7 @@ public class WebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * 裁剪普通聊天上下文，只保留最近的消
-     * .息，避免请求模型时上下文无限增长。
+     * 裁剪普通聊天上下文，只保留最近的消息，避免请求模型时上下文无限增长。
      */
     private void trimChatHistory(WSSession ws) {
         int maxHistorySize = 20;
@@ -1311,6 +1323,57 @@ public class WebSocketHandler extends TextWebSocketHandler {
         } catch (Exception e) {
             log.error("[WS] 发送消息失败: {}", e.getMessage());
         }
+    }
+
+    /**
+     * 发送流式分片消息。
+     */
+    private void sendStreamChunk(WebSocketSession session, String streamType, String streamId, String delta, boolean done) {
+        sendServerMsg(session, ServerMsg.builder()
+                .type(streamType)
+                .streamType(streamType)
+                .streamId(streamId)
+                .delta(delta)
+                .done(done)
+                .build());
+    }
+
+    /**
+     * 将已生成的长文本按段推送给前端，保留最终落库仍使用完整文本。
+     */
+    private void streamText(WebSocketSession session, String streamType, String content) {
+        String streamId = UUID.randomUUID().toString();
+        if (content == null || content.isBlank()) {
+            sendStreamChunk(session, streamType, streamId, "", true);
+            return;
+        }
+        for (String part : splitForStreaming(content)) {
+            if (!part.isEmpty()) {
+                sendStreamChunk(session, streamType, streamId, part, false);
+            }
+        }
+        sendStreamChunk(session, streamType, streamId, "", true);
+    }
+
+    /**
+     * 按段落/句子拆分，避免前端收到过碎的分片。
+     */
+    private List<String> splitForStreaming(String content) {
+        List<String> parts = new ArrayList<>();
+        StringBuilder buffer = new StringBuilder();
+        String normalized = content.replace("\r\n", "\n");
+        for (int i = 0; i < normalized.length(); i++) {
+            char ch = normalized.charAt(i);
+            buffer.append(ch);
+            if (ch == '\n' || ch == '。' || ch == '！' || ch == '？' || ch == '.' || ch == '!' || ch == '?') {
+                parts.add(buffer.toString());
+                buffer.setLength(0);
+            }
+        }
+        if (!buffer.isEmpty()) {
+            parts.add(buffer.toString());
+        }
+        return parts;
     }
 
     /**

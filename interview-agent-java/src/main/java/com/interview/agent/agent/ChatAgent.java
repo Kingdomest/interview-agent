@@ -9,6 +9,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,6 +60,15 @@ public class ChatAgent {
      * 聊天：维护历史上下文，限制最近 20 条消息
      */
     public String chat(List<Message> history, String userInput) {
+        StringBuilder sb = new StringBuilder();
+        streamChat(history, userInput).toStream().forEach(sb::append);
+        return sb.toString();
+    }
+
+    /**
+     * 聊天：流式输出。保留 chat() 同步方法，避免影响其他同步调用点。
+     */
+    public Flux<String> streamChat(List<Message> history, String userInput) {
         List<Message> messages = new ArrayList<>();
         messages.add(new SystemMessage(CHAT_AGENT_PROMPT));
 
@@ -71,13 +81,33 @@ public class ChatAgent {
         messages.add(new UserMessage(userInput));
 
         try {
-            ChatResponse response = chatModel.call(new Prompt(messages));
-            return response.getResult().getOutput().getText();
+            return chatModel.stream(new Prompt(messages))
+                    .map(this::extractText)
+                    .filter(text -> text != null && !text.isBlank());
         } catch (Exception e) {
             Throwable root = e;
             while (root.getCause() != null) root = root.getCause();
-            log.error("[ChatAgent] DashScope 调用失败 — root cause: {}", root.getMessage(), e);
+            log.error("[ChatAgent] DashScope 调用失败 root cause: {}", root.getMessage(), e);
             throw e;
         }
+    }
+
+    /**
+     * 从聊天响应中提取文本内容。
+     *
+     * <p>当响应、响应结果、输出对象或文本内容为空时，返回空字符串，
+     * 避免因不完整的响应数据导致空指针异常。</p>
+     *
+     * @param response 聊天响应
+     * @return 提取到的文本；如果响应内容为空，则返回空字符串
+     */
+    private String extractText(ChatResponse response) {
+        if (response == null) {
+            return "";
+        } else {
+            response.getResult();
+        }
+        String text = response.getResult().getOutput().getText();
+        return text == null ? "" : text;
     }
 }

@@ -27,6 +27,26 @@ public class ServerMsg {
     private String type;
 
     /**
+     * 流式消息所属的业务类型，例如 chat_reply/report/review_plan。
+     */
+    private String streamType;
+
+    /**
+     * 单次流式输出的唯一 ID，用于前端把 chunk 追加到正确的消息气泡。
+     */
+    private String streamId;
+
+    /**
+     * 流式增量内容。
+     */
+    private String delta;
+
+    /**
+     * 流式消息是否结束。
+     */
+    private Boolean done;
+
+    /**
      * 消息内容
      */
     private String content;

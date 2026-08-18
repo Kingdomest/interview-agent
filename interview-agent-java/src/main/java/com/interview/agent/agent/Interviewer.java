@@ -46,12 +46,12 @@ public class Interviewer {
             - 当前难度：{currentDifficulty}
             {profileContext}""");
 
-    private static final PromptTemplate SCORE_TEMPLATE = new PromptTemplate("""
+    private static final String SCORE_TEMPLATE = """
             请对候选人的回答进行客观评分和反馈。
             
-            题目：{question}
-            候选人回答：{answer}
-            参考答案要点：{reference}
+            题目：%s
+            候选人回答：%s
+            参考答案要点：%s
             
             【核心原则】严格基于候选人实际回答的内容进行评分：
             - 只认定候选人明确表述出来的知识点，不要推测、脑补、或替候选人补充任何内容
@@ -64,7 +64,7 @@ public class Interviewer {
             
             请输出纯 JSON 格式：
             {
-              "score": <0-100的数值，根据下方评分标准和实际命中比例计算>,
+              "score": 0-100,
               "feedback": "具体指出哪些点答得好、哪些点遗漏了",
               "key_points_hit": ["候选人明确提到的知识点1", "知识点2"],
               "key_points_missed": ["候选人未提到的知识点1", "知识点2"],
@@ -76,7 +76,7 @@ public class Interviewer {
             - 70-89：良好回答，覆盖主要要点
             - 50-69：基本回答，有明显遗漏
             - 30-49：较差回答，只覆盖少量要点
-            - 0-29：未能回答或完全偏题""");
+            - 0-29：未能回答或完全偏题""";
 
     private static final PromptTemplate UPDATE_PROFILE_TEMPLATE = new PromptTemplate("""
             请基于以下信息更新候选人画像。要求：简洁、结构化、不超过200字。
@@ -130,10 +130,7 @@ public class Interviewer {
      */
     public AnswerScore scoreAnswer(PlannedQuestion question, String answer) {
         String reference = question.getReference() != null ? question.getReference() : "无参考答案";
-        String userMsg = SCORE_TEMPLATE.render(Map.of(
-                "question", question.getContent(),
-                "answer", answer,
-                "reference", reference));
+        String userMsg = SCORE_TEMPLATE.formatted(question.getContent(), answer, reference);
 
         Prompt prompt = new Prompt(List.of(
                 new SystemMessage("你是一个严格客观的技术面试评分专家。"),
