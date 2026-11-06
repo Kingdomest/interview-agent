@@ -5,6 +5,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.context.annotation.Profile;
 
 import java.time.Duration;
 
@@ -18,6 +19,7 @@ import java.time.Duration;
  */
 @Slf4j
 @Component
+@Profile("!local")
 public class RedisStore {
 
     private static final String PROFILE_PREFIX = "interview:profile:";

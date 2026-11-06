@@ -45,7 +45,7 @@ Agent 编排层（Spring AI Alibaba Graph / StateGraph，DAG 串联）
 
 ## 核心特性
 
-- **多 Agent 协作**：7 个专职 Agent（聊天 + JD 分析 / 简历匹配 / 出题规划 / 面试官 / 评估 / 复习规划）通过 Spring AI Alibaba Graph 的 StateGraph 编排成有向图，由中心编排器按固定流程串联，流程确定、各 Agent 可独立调优。
+- **阶段编排**：JD 分析、简历匹配、出题规划、面试官、评估和复习规划由 Spring AI Alibaba Graph 的 StateGraph 串联；日常聊天由独立的 ChatAgent 处理。
 - **RAG 多路召回**：Milvus 向量检索（text-embedding-v3，1024 维，COSINE）+ 自研内存 BM25 关键词检索双路并行，使用 RRF（k=60）按两路排名融合去重，再交由 Cross-Encoder 或 LLM 做全量重排取题。
 - **RAG 离线评估**：基于人工标注数据集计算 Recall@K / MRR，支撑 TopK、分词等参数的 A/B 对比；另实现基于 LLM 的三维质量评估（忠实度 / 相关性 / 完整性）。
 - **动态难度调节**：出题阶段预生成按难度分档铺满的候选题池，面试时由阶段调度器按 basic → experience → design 三阶段从候选池自适应取题，连续答对升一档、连续答错降一档。
@@ -71,7 +71,7 @@ Agent 编排层（Spring AI Alibaba Graph / StateGraph，DAG 串联）
 | 持久化 | MySQL 8.0 | 用户 / 面试记录 / 评估报告 / 复习计划 |
 | 认证 | Spring Security + JWT（jjwt） | 登录鉴权 |
 | 容器化 | Docker Compose | 一键部署基础设施 |
-| 前端 | React + Vite + TypeScript | Web 交互界面（独立仓库 interview-agent-web） |
+| 前端 | React + Vite + TypeScript | Web 交互界面（同一仓库的 interview-agent-web 目录） |
 
 ---
 
@@ -139,7 +139,7 @@ interview-agent-java/
 | Node.js | 18+ | `node -v` | 跑前端 |
 | 通义千问 API Key | — | — | 见下方 |
 
-**获取通义千问 API Key**：打开 [DashScope 控制台](https://dashscope.console.aliyun.com/) → 用支付宝/淘宝账号登录 → 「API-KEY 管理」→ 创建新 Key（以 `sk-` 开头）。新用户有免费额度，qwen-plus 足够跑完多次完整面试。
+**获取通义千问 API Key**：在 [DashScope 控制台](https://dashscope.console.aliyun.com/) 创建 Key，并只保存在本地 `.env` 或环境变量中。
 
 ### 第二步：配置环境变量
 
@@ -147,7 +147,7 @@ interview-agent-java/
 cp .env.example .env
 ```
 
-编辑 `.env`，**只需填入第一行的 API Key**，其余保持默认（与 `docker-compose.yml` 端口一一对应）：
+编辑 `.env`，填入 API Key；使用完整基础设施模式时，其余地址需与 `docker-compose.yml` 对应：
 
 ```bash
 DASHSCOPE_API_KEY=sk-你的真实key
@@ -195,7 +195,7 @@ make run           # = mvn spring-boot:run，启动时自动加载 .env
 
 ### 第五步：启动前端
 
-前端在同级目录的独立仓库 `interview-agent-web`（Vite 已将 `/api`、`/ws` 代理到 `localhost:9090`）：
+前端在同一仓库的 `interview-agent-web` 目录（Vite 已将 `/api`、`/ws` 代理到 `localhost:9090`）：
 
 ```bash
 cd ../interview-agent-web

@@ -14,7 +14,7 @@ InterviewAgent 的 Web 前端，基于 React + TypeScript + Vite 构建。通过
 
 ## 前置条件
 
-1. **Node.js 18+**
+1. **Node.js 20.19+ 或 22.12+**
 
 ```bash
 node --version   # 确认已安装
@@ -22,13 +22,7 @@ node --version   # 确认已安装
 
 2. **后端服务已启动**
 
-前端依赖后端提供 API 和 WebSocket 服务（默认 `localhost:9090`）。请先按照 [interview-agent](../interview-agent) 后端项目的说明启动后端：
-
-```bash
-cd ../interview-agent
-make infra-up              # 启动 Milvus + Redis + MySQL
-go run cmd/main.go web     # 启动后端，监听 :9090
-```
+前端依赖后端提供 API 和 WebSocket 服务（默认 `localhost:9090`）。请先按[仓库首页的快速开始](../README.md#快速开始)配置 DashScope API Key 并启动 Java 后端。
 
 ## 快速启动
 

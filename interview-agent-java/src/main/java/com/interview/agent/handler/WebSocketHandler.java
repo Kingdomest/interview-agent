@@ -341,22 +341,22 @@ public class WebSocketHandler extends TextWebSocketHandler {
         StringBuilder reply = new StringBuilder();
         String streamId = UUID.randomUUID().toString();
         chatAgent.streamChat(ws.chatHistory, input)
-                .doOnNext(delta -> {
-                    reply.append(delta);
-                    sendStreamChunk(ws.conn, "chat_reply", streamId, delta, false);
-                })
-                .doOnError(e -> {
-                    log.error("[WS] 流式聊天失败: {}", e.getMessage(), e);
-                    sendServerMsg(ws.conn, ServerMsg.builder().type("error").message("聊天生成失败: " + e.getMessage()).build());
-                })
-                .doOnComplete(() -> {
-                    String finalReply = reply.toString();
-                    ws.chatHistory.add(new AssistantMessage(finalReply));
-                    trimChatHistory(ws);
-                    sendStreamChunk(ws.conn, "chat_reply", streamId, "", true);
-                    saveChatTurn(ws, input, finalReply);
-                })
-                .subscribe();
+                .subscribe(
+                        delta -> {
+                            reply.append(delta);
+                            sendStreamChunk(ws.conn, "chat_reply", streamId, delta, false);
+                        },
+                        e -> {
+                            log.error("[WS] 流式聊天失败: {}", e.getMessage(), e);
+                            sendServerMsg(ws.conn, ServerMsg.builder().type("error").message("聊天生成失败: " + e.getMessage()).build());
+                        },
+                        () -> {
+                            String finalReply = reply.toString();
+                            ws.chatHistory.add(new AssistantMessage(finalReply));
+                            trimChatHistory(ws);
+                            sendStreamChunk(ws.conn, "chat_reply", streamId, "", true);
+                            saveChatTurn(ws, input, finalReply);
+                        });
     }
 
     /**

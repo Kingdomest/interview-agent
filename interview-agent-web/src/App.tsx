@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useState} from 'react'
 import {Sidebar} from './components/Sidebar'
 import {ChatWindow} from './components/ChatWindow'
+import {QuestionBankView} from './components/QuestionBankView'
 import {LoginPage} from './components/LoginPage'
 import {NoticeDialog} from './components/NoticeDialog'
 import {useWebSocket} from './hooks/useWebSocket'
@@ -41,6 +42,7 @@ export default function App() {
     const token = useAuthStore((s) => s.token)
     const wsRef = useWebSocket()
     const [notice, setNotice] = useState<NoticeState | null>(null)
+    const [activeView, setActiveView] = useState<'chat' | 'questionBank'>('chat')
 
     /**
      * 页面加载后检查是否存在未完成的面试缓存。
@@ -90,6 +92,7 @@ export default function App() {
     const handleLoadSession = useCallback(async (sessionId: string) => {
         try {
             const session = await getSessionDetail(sessionId)
+            setActiveView('chat')
             useChatStore.getState().setCurrentSessionId(sessionId)
             wsRef.current?.send({type: 'load_session', sessionId})
 
@@ -192,7 +195,10 @@ export default function App() {
         <div className="flex h-screen bg-white">
             <Sidebar
                 onLoadSession={handleLoadSession}
+                onViewQuestionBank={() => setActiveView('questionBank')}
+                questionBankActive={activeView === 'questionBank'}
                 onNewChat={() => {
+                    setActiveView('chat')
                     useChatStore.getState().clearMessages()
                     wsRef.current?.send({type: 'new_chat'})
                     window.dispatchEvent(new Event('sessions_changed'))
@@ -204,7 +210,9 @@ export default function App() {
                     wsRef.current?.send({type: 'new_chat'})
                 }}
             />
-            <ChatWindow wsRef={wsRef}/>
+            {activeView === 'questionBank'
+                ? <QuestionBankView onBack={() => setActiveView('chat')}/>
+                : <ChatWindow wsRef={wsRef}/>}
             <NoticeDialog
                 open={notice !== null}
                 title={notice?.title || ''}

@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.context.annotation.Profile;
 
 import java.time.Duration;
 import java.util.*;
@@ -30,6 +31,7 @@ import java.util.*;
  */
 @Slf4j
 @Service
+@Profile("!local")
 @RequiredArgsConstructor
 public class SessionCacheService {
 

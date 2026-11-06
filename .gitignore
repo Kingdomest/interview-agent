@@ -1,0 +1,14 @@
+# Local IDE and runtime files
+.idea/
+target/
+**/.env
+**/data/local/
+
+# Dependency and build output
+**/node_modules/
+**/dist/
+**/target/
+
+# Local Maven mirror configuration
+**/.mvn/settings.xml
+**/.mvn/maven.config

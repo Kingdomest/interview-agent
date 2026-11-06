@@ -95,7 +95,7 @@ public class QuestionPlanner {
             请按以下 JSON 格式输出（不要输出其他内容）：
             
             {
-              "total_questions": 10,
+              "total_questions": 31,
               "distribution": {
                 "basic": 0,
                 "experience": 0,
@@ -184,8 +184,11 @@ public class QuestionPlanner {
         } catch (Exception ignored) {
         }
 
+        String assemblerPrompt = QUESTION_ASSEMBLER_PROMPT.replace(
+                "\"total_questions\": 31", "\"total_questions\": " + dirs.size());
+        userMsg.insert(0, "输入共有 " + dirs.size() + " 个出题方向，请逐一生成相同数量的题目。\n\n");
         Prompt prompt = new Prompt(List.of(
-                new SystemMessage(QUESTION_ASSEMBLER_PROMPT),
+                new SystemMessage(assemblerPrompt),
                 new UserMessage(userMsg.toString())
         ));
 

@@ -3,6 +3,7 @@ package com.interview.agent.rag;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.milvus.v2.client.MilvusClientV2;
 import io.milvus.v2.common.DataType;
+import io.milvus.v2.common.ConsistencyLevel;
 import io.milvus.v2.common.IndexParam;
 import io.milvus.v2.service.collection.request.AddFieldReq;
 import io.milvus.v2.service.collection.request.CreateCollectionReq;
@@ -10,13 +11,19 @@ import io.milvus.v2.service.collection.request.HasCollectionReq;
 import io.milvus.v2.service.collection.request.LoadCollectionReq;
 import io.milvus.v2.service.vector.request.DeleteReq;
 import io.milvus.v2.service.vector.request.InsertReq;
+import io.milvus.v2.service.vector.request.QueryIteratorReq;
+import io.milvus.v2.service.vector.request.QueryReq;
 import io.milvus.v2.service.vector.request.SearchReq;
+import io.milvus.v2.service.vector.response.QueryResp;
+import io.milvus.orm.iterator.QueryIterator;
+import io.milvus.response.QueryResultsWrapper;
 import io.milvus.v2.service.vector.response.SearchResp;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.stereotype.Component;
+import org.springframework.context.annotation.Profile;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -31,6 +38,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
+@Profile("!local")
 public class MilvusStore {
 
     public static final String COLLECTION_NAME = "interview_questions";
@@ -173,6 +181,56 @@ public class MilvusStore {
         return parseSearchResults(resp);
     }
 
+    /** 只读取当前用户的来源文件名，供题库首页分类展示。 */
+    public Map<String, Long> listSourcesByUser(String userId) {
+        QueryIterator iterator = milvusClient.queryIterator(QueryIteratorReq.builder()
+                .collectionName(COLLECTION_NAME)
+                .expr("user_id == " + toJsonStringLiteral(userId))
+                .outputFields(List.of("id", "source_file"))
+                .consistencyLevel(ConsistencyLevel.STRONG)
+                .batchSize(500)
+                .build());
+        Map<String, Long> counts = new HashMap<>();
+        try {
+            List<QueryResultsWrapper.RowRecord> rows;
+            while (!(rows = iterator.next()).isEmpty()) {
+                for (QueryResultsWrapper.RowRecord row : rows) {
+                    Object value = row.getFieldValues().get("source_file");
+                    if (value != null && !value.toString().isBlank()) {
+                        counts.merge(value.toString(), 1L, Long::sum);
+                    }
+                }
+            }
+        } finally {
+            iterator.close();
+        }
+        return counts;
+    }
+
+    /** 按用户和来源文件分页读取已入库的题目，不查询或返回向量。 */
+    public List<RagDocument> listBySource(String userId, String sourceFile, int offset, int limit) {
+        QueryResp response = milvusClient.query(QueryReq.builder()
+                .collectionName(COLLECTION_NAME)
+                .filter("user_id == " + toJsonStringLiteral(userId)
+                        + " && source_file == " + toJsonStringLiteral(sourceFile))
+                .offset(offset)
+                .limit(limit)
+                .outputFields(List.of("id", "content", "metadata", "source_file"))
+                .consistencyLevel(ConsistencyLevel.STRONG)
+                .build());
+
+        if (response.getQueryResults() == null) return List.of();
+        return response.getQueryResults().stream().map(result -> {
+            Map<String, Object> entity = result.getEntity();
+            return RagDocument.builder()
+                    .id(String.valueOf(entity.getOrDefault("id", "")))
+                    .content(String.valueOf(entity.getOrDefault("content", "")))
+                    .sourceFile(String.valueOf(entity.getOrDefault("source_file", "")))
+                    .metadata(parseMetadata(entity.get("metadata")))
+                    .build();
+        }).toList();
+    }
+
     /**
      * 删除指定用户的所有题目
      */
@@ -288,6 +346,30 @@ public class MilvusStore {
             return objectMapper.writeValueAsString(map != null ? map : Collections.emptyMap());
         } catch (Exception e) {
             return "{}";
+        }
+    }
+
+    private String toJsonStringLiteral(String value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid user ID", e);
+        }
+    }
+
+    private Map<String, Object> parseMetadata(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> metadata = new HashMap<>();
+            map.forEach((key, item) -> metadata.put(String.valueOf(key), item));
+            return metadata;
+        }
+        if (value == null) return Map.of();
+        try {
+            return objectMapper.readValue(value.toString(),
+                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            log.warn("[Milvus] 解析题库 metadata 失败: {}", e.getMessage());
+            return Map.of();
         }
     }
 }

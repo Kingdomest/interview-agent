@@ -8,11 +8,13 @@ import {HistorySidebar} from './HistorySidebar'
 interface SidebarProps {
     onLoadSession?: (sessionId: string) => void
     onNewChat?: () => void
+    onViewQuestionBank?: () => void
+    questionBankActive?: boolean
     /** 删除会话成功后通知主页面处理当前会话切换。 */
     onSessionDeleted?: (sessionId: string) => void
 }
 
-export function Sidebar({onLoadSession, onNewChat, onSessionDeleted}: SidebarProps) {
+export function Sidebar({onLoadSession, onNewChat, onViewQuestionBank, questionBankActive, onSessionDeleted}: SidebarProps) {
     const {clearMessages, connected} = useChatStore()
     const username = useAuthStore((s) => s.username)
     const logout = useAuthStore((s) => s.logout)
@@ -24,12 +26,23 @@ export function Sidebar({onLoadSession, onNewChat, onSessionDeleted}: SidebarPro
                 <p className="text-xs text-gray-400 mt-1">AI 模拟面试系统</p>
             </div>
 
-            <div className="p-3">
+            <div className="p-3 space-y-2">
                 <button
                     onClick={onNewChat || clearMessages}
                     className="w-full py-2 px-4 border border-gray-600 rounded-lg text-sm hover:bg-gray-800 transition"
                 >
                     + 新建对话
+                </button>
+                <button
+                    onClick={onViewQuestionBank}
+                    aria-current={questionBankActive ? 'page' : undefined}
+                    className={`w-full py-2 px-4 rounded-lg text-sm transition text-left flex items-center gap-2 ${
+                        questionBankActive
+                            ? 'bg-indigo-600 text-white'
+                            : 'border border-gray-700 text-gray-200 hover:bg-gray-800'
+                    }`}
+                >
+                    <span aria-hidden="true">▤</span> 查看题库
                 </button>
             </div>
 

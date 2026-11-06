@@ -12,7 +12,7 @@ import org.springframework.http.client.JettyClientHttpRequestFactory;
 import java.time.Duration;
 
 /**
- * 放大 DashScope 同步 HTTP 调用的超时。
+ * 放大模型同步 HTTP 调用的超时。
  *
  * <p>Spring AI Alibaba 1.1.2.0（classpath 带 jetty-client）下，长文本 LLM 调用（题库解析 /
  * RAG 评估）会被多层默认超时掐断，且 {@code spring.ai.dashscope.read-timeout} 进了 Environment
@@ -35,13 +35,14 @@ import java.time.Duration;
 public class RagHttpClientAutoConfig {
 
     /**
-     * 读/空闲超时（秒），可用环境变量 DASHSCOPE_READ_TIMEOUT 覆盖（默认 300）。
+     * 读/空闲超时（秒），可用 MODEL_READ_TIMEOUT 覆盖，也兼容原有的 DASHSCOPE_READ_TIMEOUT。
      */
     private static final long TIMEOUT_SECONDS =
-            Long.parseLong(System.getenv().getOrDefault("DASHSCOPE_READ_TIMEOUT", "600"));
+            Long.parseLong(System.getenv().getOrDefault("MODEL_READ_TIMEOUT",
+                    System.getenv().getOrDefault("DASHSCOPE_READ_TIMEOUT", "600")));
 
     /**
-     * 自定义 Jetty HttpClient：idle 300s、connect 30s（由 Spring 管理生命周期，销毁时 stop）。
+     * 自定义 Jetty HttpClient：idle 可配置、connect 30s（由 Spring 管理生命周期，销毁时 stop）。
      */
     @Bean(destroyMethod = "stop")
     public HttpClient dashScopeJettyHttpClient() throws Exception {
